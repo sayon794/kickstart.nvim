@@ -99,7 +99,7 @@ do
   vim.g.maplocalleader = ' '
 
   -- Set to true if you have a Nerd Font installed and selected in the terminal
-  vim.g.have_nerd_font = false
+  vim.g.have_nerd_font = true
 
   -- [[ Setting options ]]
   --  See `:help vim.o`
@@ -108,9 +108,7 @@ do
 
   -- Make line numbers default
   vim.o.number = true
-  -- You can also add relative line numbers, to help with jumping.
-  --  Experiment for yourself to see if you like it!
-  -- vim.o.relativenumber = true
+  vim.o.relativenumber = true
 
   -- Enable mouse mode, can be useful for resizing splits for example!
   vim.o.mouse = 'a'
@@ -135,7 +133,7 @@ do
   vim.o.smartcase = true
 
   -- Keep signcolumn on by default
-  vim.o.signcolumn = 'yes'
+  vim.o.signcolumn = 'yes:2'
 
   -- Decrease update time
   vim.o.updatetime = 250
@@ -171,6 +169,17 @@ do
   -- instead raise a dialog asking if you wish to save the current file(s)
   -- See `:help 'confirm'`
   vim.o.confirm = true
+
+  -- CUSTOM: setting tabs to 4 spaces
+  vim.o.tabstop = 4
+  vim.o.shiftwidth = 4
+  vim.o.expandtab = true
+
+  -- CUSTOM: stop adding trailing newline
+  vim.o.fixendofline = false
+
+  -- CUSTOM: set to show fold columns
+  vim.o.foldcolumn = '1'
 
   -- [[ Basic Keymaps ]]
   --  See `:help vim.keymap.set()`
@@ -306,7 +315,20 @@ do
 
       if name == 'nvim-treesitter' then
         if not ev.data.active then vim.cmd.packadd 'nvim-treesitter' end
+        if vim.fn.executable 'tree-sitter' ~= 1 and vim.fn.executable 'cargo' == 1 then
+          vim.notify('Installing tree-sitter CLI via cargo...', vim.log.levels.INFO)
+          vim.system({ 'cargo', 'install', 'tree-sitter-cli' }, {}, function() vim.cmd 'TSUpdate' end)
+          return
+        end
         vim.cmd 'TSUpdate'
+        return
+      end
+
+      if name == 'markdown-preview.nvim' then
+        if vim.fn.executable 'npx' == 1 then
+          run_build(name, { 'npx', '--yes', 'yarn', 'install' }, ev.data.path .. '/app')
+          run_build(name, { 'npx', '--yes', 'yarn', 'build' }, ev.data.path .. '/app')
+        end
         return
       end
     end,
@@ -686,10 +708,11 @@ do
   --  See `:help lsp-config` for information about keys and how to configure
   ---@type table<string, vim.lsp.Config>
   local servers = {
-    -- clangd = {},
-    -- gopls = {},
-    -- pyright = {},
-    -- rust_analyzer = {},
+    clangd = {
+      cmd = { '/usr/bin/clangd' },
+    },
+    gopls = {},
+    rust_analyzer = {},
     --
     -- Some languages (like typescript) have entire language plugins that can be useful:
     --    https://github.com/pmizio/typescript-tools.nvim
@@ -751,9 +774,9 @@ do
   --    :Mason
   --
   -- You can press `g?` for help in this menu.
-  local ensure_installed = vim.tbl_keys(servers or {})
+  local ensure_installed = vim.tbl_filter(function(name) return name ~= 'clangd' end, vim.tbl_keys(servers or {}))
   vim.list_extend(ensure_installed, {
-    -- You can add other tools here that you want Mason to install
+    'rust-analyzer',
   })
 
   require('mason-tool-installer').setup { ensure_installed = ensure_installed }
@@ -894,12 +917,21 @@ do
   --
   --  See `:help nvim-treesitter-intro`
 
-  -- NOTE: You can also specify a branch or a specific commit
   vim.pack.add { { src = gh 'nvim-treesitter/nvim-treesitter', version = 'main' } }
 
   -- Ensure basic parsers are installed
-  local parsers = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' }
-  require('nvim-treesitter').install(parsers)
+  local parsers = { 'bash', 'c', 'diff', 'html', 'java', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' }
+
+  -- Guard: tree-sitter CLI is required to compile parsers
+  if vim.fn.executable 'tree-sitter' ~= 1 then
+    vim.notify_once('tree-sitter CLI not found. Install it with: cargo install tree-sitter-cli', vim.log.levels.WARN)
+    if vim.fn.executable 'cargo' == 1 then
+      vim.notify('Auto-installing tree-sitter CLI via cargo...', vim.log.levels.INFO)
+      vim.system({ 'cargo', 'install', 'tree-sitter-cli' }, {}, function() require('nvim-treesitter').install(parsers) end)
+    end
+  else
+    require('nvim-treesitter').install(parsers)
+  end
 
   ---@param buf integer
   ---@param language string
@@ -960,17 +992,17 @@ do
   --  Here are some example plugins that I've included in the Kickstart repository.
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
-  -- require 'kickstart.plugins.debug'
-  -- require 'kickstart.plugins.indent_line'
+  require 'kickstart.plugins.debug'
+  require 'kickstart.plugins.indent_line'
   -- require 'kickstart.plugins.lint'
   -- require 'kickstart.plugins.autopairs'
-  -- require 'kickstart.plugins.neo-tree'
-  -- require 'kickstart.plugins.gitsigns' -- adds gitsigns recommended keymaps
+  require 'kickstart.plugins.neo-tree'
+  require 'kickstart.plugins.gitsigns' -- adds gitsigns recommended keymaps
 
   -- NOTE: You can add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
-  -- require 'custom.plugins'
+  require 'custom.plugins'
 end
 
 -- The line beneath this is called `modeline`. See `:help modeline`
